@@ -2,43 +2,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>5G vs 4G Pong</title>
+  <title>5G vs 4G Demo</title>
   <style>
-    html, body {
+    body, html {
       margin: 0;
       padding: 0;
-      background: black;
       overflow: hidden;
+      background: black;
+      color: white;
     }
     canvas {
+      background: #000;
       display: block;
-      background: #111;
     }
     #startMenu {
       position: absolute;
       top: 20px;
       left: 20px;
       background: white;
+      color: black;
       padding: 10px;
       border-radius: 5px;
-      z-index: 2;
+      z-index: 10;
     }
     #scoreBoard {
       position: absolute;
       top: 20px;
       right: 20px;
-      color: white;
+      z-index: 10;
       font-size: 20px;
-      z-index: 2;
     }
   </style>
 </head>
 <body>
   <div id="startMenu">
-    <label>Pasirink savo pusę:</label>
+    <label>Pasirink žaidėją:</label>
     <select id="sideSelect">
-      <option value="left">5G (kairė)</option>
-      <option value="right">5G (dešinė)</option>
+      <option value="left">5G (kairėje)</option>
+      <option value="right">5G (dešinėje)</option>
     </select>
     <button onclick="startGame()">Pradėti</button>
   </div>
@@ -48,21 +49,21 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;let side = "left";
+    canvas.height = window.innerHeight;let playerSide = "left";
 let scores = { left: 0, right: 0 };
 
-const paddleHeight = 100;
-const paddleWidth = 15;
-const ballSize = 10;
+const paddleHeight = 100, paddleWidth = 15, ballSize = 10;
+let speed = 5;
 
-let leftPaddle = { x: 30, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
-let rightPaddle = { x: canvas.width - 30 - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
-let ball = { x: canvas.width / 2, y: canvas.height / 2, dx: 5, dy: 5 };
+let leftPaddle = { x: 20, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
+let rightPaddle = { x: canvas.width - 20 - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
+let ball = { x: canvas.width / 2, y: canvas.height / 2, dx: speed, dy: speed };
 
 let gameStarted = false;
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   ctx.fillStyle = "white";
   ctx.fillRect(leftPaddle.x, leftPaddle.y, paddleWidth, paddleHeight);
   ctx.fillRect(rightPaddle.x, rightPaddle.y, paddleWidth, paddleHeight);
@@ -74,13 +75,11 @@ function draw() {
 function update() {
   if (!gameStarted) return;
 
-  // Move ball
   ball.x += ball.dx;
   ball.y += ball.dy;
 
   if (ball.y <= 0 || ball.y >= canvas.height) ball.dy *= -1;
 
-  // Collisions
   if (
     ball.x - ballSize < leftPaddle.x + paddleWidth &&
     ball.y > leftPaddle.y &&
@@ -93,7 +92,6 @@ function update() {
     ball.y < rightPaddle.y + paddleHeight
   ) ball.dx *= -1;
 
-  // Score
   if (ball.x < 0) {
     scores.right++;
     resetBall();
@@ -102,17 +100,16 @@ function update() {
     resetBall();
   }
 
-  document.getElementById("scoreBoard").innerText = `5G: ${side === 'left' ? scores.left : scores.right} | 4G: ${side === 'left' ? scores.right : scores.left}`;
+  document.getElementById("scoreBoard").innerText = `5G: ${playerSide === 'left' ? scores.left : scores.right} | 4G: ${playerSide === 'left' ? scores.right : scores.left}`;
 
-  // Move paddles
   leftPaddle.y += leftPaddle.dy;
   rightPaddle.y += rightPaddle.dy;
 
-  // AI
-  if (side === "left") {
-    rightPaddle.dy = ball.y < rightPaddle.y + paddleHeight / 2 ? -5 : 5;
+  // AI for the opposite side
+  if (playerSide === "left") {
+    rightPaddle.dy = ball.y < rightPaddle.y + paddleHeight / 2 ? -speed : speed;
   } else {
-    leftPaddle.dy = ball.y < leftPaddle.y + paddleHeight / 2 ? -5 : 5;
+    leftPaddle.dy = ball.y < leftPaddle.y + paddleHeight / 2 ? -speed : speed;
   }
 
   draw();
@@ -122,25 +119,32 @@ function update() {
 function resetBall() {
   ball.x = canvas.width / 2;
   ball.y = canvas.height / 2;
-  ball.dx *= -1;
+  ball.dx = speed * (Math.random() > 0.5 ? 1 : -1);
+  ball.dy = speed * (Math.random() > 0.5 ? 1 : -1);
 }
 
 function startGame() {
-  side = document.getElementById("sideSelect").value;
+  playerSide = document.getElementById("sideSelect").value;
   document.getElementById("startMenu").style.display = "none";
 
-  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+  if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
     window.addEventListener("touchmove", e => {
-      let touchY = e.touches[0].clientY;
-      if (side === "left") leftPaddle.y = touchY - paddleHeight / 2;
-      else rightPaddle.y = touchY - paddleHeight / 2;
-    });
+      let y = e.touches[0].clientY;
+      if (playerSide === "left") {
+        leftPaddle.y = y - paddleHeight / 2;
+      } else {
+        rightPaddle.y = y - paddleHeight / 2;
+      }
+    }, { passive: false });
   } else {
     window.addEventListener("keydown", e => {
-      if (e.key === "w") leftPaddle.dy = -10;
-      if (e.key === "s") leftPaddle.dy = 10;
-      if (e.key === "ArrowUp") rightPaddle.dy = -10;
-      if (e.key === "ArrowDown") rightPaddle.dy = 10;
+      if (playerSide === "left") {
+        if (e.key === "w") leftPaddle.dy = -10;
+        if (e.key === "s") leftPaddle.dy = 10;
+      } else {
+        if (e.key === "ArrowUp") rightPaddle.dy = -10;
+        if (e.key === "ArrowDown") rightPaddle.dy = 10;
+      }
     });
     window.addEventListener("keyup", () => {
       leftPaddle.dy = 0;
