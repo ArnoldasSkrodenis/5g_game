@@ -16,18 +16,18 @@
       color: white;
     }
     button:active { background-color: #555; }
-    #playerSelect { margin: 20px; }
   </style>
 </head>
 <body>
   <h1>5G vs 4G Latency Ping Pong Demo</h1>
-  <div id="playerSelect">
-    <p>Pasirink žaidėją:</p>
-    <button onclick="startGame('a')">Būti žaidėju A (kairėje)</button>
-    <button onclick="startGame('b')">Būti žaidėju B (dešinėje)</button>
-    <button onclick="startGame('ai')">Stebėti (abu AI)</button>
+  <div id="startMenu">
+    <p>Pasirinkite vaidmenį:</p>
+    <button onclick="startGame('a')">A (Kairysis žaidėjas (4G))</button>
+    <button onclick="startGame('b')">B (Dešinysis žaidėjas (5G))</button>
+    <button onclick="startGame('ai')">Stebėti (AI vs AI)</button>
   </div>
-  <canvas id="gameCanvas" width="300" height="400" style="display:none;"></canvas>
+  <canvas id="gameCanvas" width="300" height="400" style="display:none"></canvas>
+  <p id="scoreDisplay" style="display:none">A: 0 — B: 0</p>
   <div class="controls" id="touchControls" style="display: none">
     <div class="control-group" id="leftControls">
       <button id="leftUp">Left Up</button>
@@ -39,12 +39,15 @@
     </div>
   </div>
   <script>
-    let player = null;
     const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");const paddleHeight = 60, paddleWidth = 10;
+    const ctx = canvas.getContext("2d");
+    let controlLeft = false;
+    let controlRight = false;
+    let gameStarted = false;const paddleHeight = 60, paddleWidth = 10;
 let leftY = 150, rightY = 150;
 let leftVelocity = 0, rightVelocity = 0;
 let rightInputQueue = [];
+let scoreA = 0, scoreB = 0;
 
 const ball = {
   x: canvas.width / 2,
@@ -54,17 +57,16 @@ const ball = {
   radius: 6
 };
 
-let controlLeft = false;
-let controlRight = false;
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-function startGame(selectedPlayer) {
-  player = selectedPlayer;
-  controlLeft = player === "a";
-  controlRight = player === "b";
-
-  document.getElementById("playerSelect").style.display = "none";
+function startGame(player) {
+  gameStarted = true;
+  document.getElementById("startMenu").style.display = "none";
   canvas.style.display = "block";
+  document.getElementById("scoreDisplay").style.display = "block";
+
+  controlLeft = (player === "a");
+  controlRight = (player === "b");
 
   if (isTouch) {
     document.getElementById("touchControls").style.display = "flex";
@@ -86,6 +88,10 @@ function drawBall() {
   ctx.fillStyle = "white";
   ctx.fill();
   ctx.closePath();
+}
+
+function updateScore() {
+  document.getElementById("scoreDisplay").textContent = `5G: ${scoreA} — 4G: ${scoreB}`;
 }
 
 function updatePositions() {
@@ -119,10 +125,21 @@ function updatePositions() {
   if (ball.x - ball.radius < paddleWidth && ball.y > leftY && ball.y < leftY + paddleHeight) ball.vx *= -1;
   if (ball.x + ball.radius > canvas.width - paddleWidth && ball.y > rightY && ball.y < rightY + paddleHeight) ball.vx *= -1;
 
-  if (ball.x < 0 || ball.x > canvas.width) {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
+  if (ball.x < 0) {
+    scoreB++;
+    updateScore();
+    resetBall();
+  } else if (ball.x > canvas.width) {
+    scoreA++;
+    updateScore();
+    resetBall();
   }
+}
+
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.vx *= -1;
 }
 
 function draw() {
@@ -133,11 +150,13 @@ function draw() {
 }
 
 function gameLoop() {
+  if (!gameStarted) return;
   updatePositions();
   draw();
   requestAnimationFrame(gameLoop);
 }
 
+// TOUCH CONTROLS
 if (isTouch) {
   document.getElementById("leftUp").addEventListener("touchstart", () => leftVelocity = -3);
   document.getElementById("leftDown").addEventListener("touchstart", () => leftVelocity = 3);
@@ -158,24 +177,27 @@ if (isTouch) {
   });
 }
 
-if (!isTouch) {
-  document.addEventListener("keydown", e => {
-    if (controlLeft) {
-      if (e.key === "w") leftVelocity = -3;
-      if (e.key === "s") leftVelocity = 3;
+// KEYBOARD CONTROLS
+document.addEventListener("keydown", e => {
+  if (controlLeft) {
+    if (e.key === "w") leftVelocity = -3;
+    if (e.key === "s") leftVelocity = 3;
+  }
+  if (controlRight) {
+    if (e.key === "ArrowUp") {
+      rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
     }
-    if (controlRight) {
-      if (e.key === "ArrowUp") rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
-      if (e.key === "ArrowDown") rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
+    if (e.key === "ArrowDown") {
+      rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
     }
-  });
-  document.addEventListener("keyup", e => {
-    if (controlLeft && (e.key === "w" || e.key === "s")) leftVelocity = 0;
-    if (controlRight && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-      rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-    }
-  });
-}
+  }
+});
+document.addEventListener("keyup", e => {
+  if (controlLeft && (e.key === "w" || e.key === "s")) leftVelocity = 0;
+  if (controlRight && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
+  }
+});
 
   </script>
 </body>
