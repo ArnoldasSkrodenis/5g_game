@@ -1,11 +1,13 @@
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>5G vs 4G Latency Ping Pong</title>
   <style>
     body { font-family: sans-serif; text-align: center; color: white; background-color: #111; margin: 0; padding: 0; }
     canvas { background: #000; display: block; margin: 10px auto; border: 2px solid #fff; }
-    .controls, .scoreboard, .playerSelect { display: flex; justify-content: center; gap: 20px; margin-top: 10px; }
+    .controls { display: flex; justify-content: space-around; margin-top: 10px; }
     .control-group { display: flex; flex-direction: column; gap: 10px; }
     button {
       padding: 10px 20px;
@@ -19,173 +21,146 @@
   </style>
 </head>
 <body>
-  <h1>5G vs 4G Latency Ping Pong</h1>
-  <div class="playerSelect">
-    <button onclick="startGame('a')">Play as A (5G)</button>
-    <button onclick="startGame('b')">Play as B (4G)</button>
-    <button onclick="startGame('ai')">Watch AI vs AI</button>
-  </div>
-  <div class="scoreboard">
-    <span id="scoreA">5G: 0</span>
-    <span id="scoreB">4G: 0</span>
+  <h1>5G vs 4G Latency Ping Pong Demo</h1>
+  <p>Use the buttons to choose which player to control. 5G and 4G AI will simulate latency differences.</p>
+  <div>
+    <button id="playerA">Choose Player A (5G)</button>
+    <button id="playerB">Choose Player B (4G)</button>
+    <button id="aiMode">Both AI</button>
   </div>
   <canvas id="gameCanvas" width="300" height="400"></canvas>
-  <div class="controls" id="touchControls" style="display: none">
-    <div class="control-group" id="leftControls">
-      <button id="leftUp">Left Up</button>
-      <button id="leftDown">Left Down</button>
-    </div>
-    <div class="control-group" id="rightControls">
-      <button id="rightUp">Right Up</button>
-      <button id="rightDown">Right Down</button>
-    </div>
-  </div>
   <script>
     const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");const paddleHeight = 60, paddleWidth = 10;
-let leftY = 150, rightY = 150;
-let leftVelocity = 0, rightVelocity = 0;
-let rightInputQueue = [], rightAIQueue = [];
-let ball, playerSide, controlLeft, controlRight;
-const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const ctx = canvas.getContext("2d");
 
-let scoreA = 0, scoreB = 0;
+    const paddleHeight = 60, paddleWidth = 10;
+    let leftY = 150, rightY = 150;
+    let leftVelocity = 0, rightVelocity = 0;
+    let rightInputQueue = [];
+    let leftPlayer = "AI", rightPlayer = "AI"; // Default to AI for both sides
 
-function resetBall() {
-  ball = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    vx: 2,
-    vy: 1.5,
-    radius: 6
-  };
-}
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      vx: 2,
+      vy: 1.5,
+      radius: 6
+    };
 
-function drawPaddle(x, y) {
-  ctx.fillStyle = "white";
-  ctx.fillRect(x, y, paddleWidth, paddleHeight);
-}
+    // Store past ball position for latency simulation
+    let pastBallPosition = { x: ball.x, y: ball.y };
 
-function drawBall() {
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-  ctx.fillStyle = "white";
-  ctx.fill();
-  ctx.closePath();
-}
-
-function updatePositions() {
-  if (controlLeft) {
-    leftY += leftVelocity;
-  } else {
-    if (ball.vx < 0 && ball.x < canvas.width / 2) {
-      const target = ball.y - paddleHeight / 2;
-      leftY += Math.sign(target - leftY) * 1.5;
+    function drawPaddle(x, y) {
+      ctx.fillStyle = "white";
+      ctx.fillRect(x, y, paddleWidth, paddleHeight);
     }
-  }
-  leftY = Math.max(0, Math.min(canvas.height - paddleHeight, leftY));
 
-  if (controlRight) {
-    if (rightInputQueue.length > 0 && Date.now() >= rightInputQueue[0].time) {
-      rightVelocity = rightInputQueue.shift().velocity;
+    function drawBall() {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "white";
+      ctx.fill();
+      ctx.closePath();
     }
-    rightY += rightVelocity;
-  } else {
-    if (rightAIQueue.length > 0 && Date.now() >= rightAIQueue[0].time) {
-      rightY += rightAIQueue.shift().velocity;
-    } else if (rightAIQueue.length === 0 && ball.vx > 0 && ball.x > canvas.width / 2) {
-      const target = ball.y - paddleHeight / 2;
-      const velocity = Math.sign(target - rightY) * 1.5;
-      rightAIQueue.push({ velocity, time: Date.now() + 200 });
+
+    function updatePositions() {
+      if (leftPlayer === "Player") {
+        leftY += leftVelocity;
+      } else if (leftPlayer === "AI") {
+        // AI control for Player A
+        if (ball.vx < 0 && ball.x < canvas.width / 2) {
+          const target = ball.y - paddleHeight / 2;
+          leftY += Math.sign(target - leftY) * 1.5;
+        }
+      }
+
+      leftY = Math.max(0, Math.min(canvas.height - paddleHeight, leftY));
+
+      if (rightPlayer === "Player") {
+        if (rightInputQueue.length > 0 && Date.now() >= rightInputQueue[0].time) {
+          rightVelocity = rightInputQueue.shift().velocity;
+        }
+        rightY += rightVelocity;
+      } else if (rightPlayer === "AI") {
+        // AI control for Player B (4G AI with latency)
+        if (ball.vx > 0 && ball.x > canvas.width / 2) {
+          // Use past ball position to simulate latency
+          const target = pastBallPosition.y - paddleHeight / 2;
+          rightY += Math.sign(target - rightY) * 1.5;
+        }
+      }
+
+      rightY = Math.max(0, Math.min(canvas.height - paddleHeight, rightY));
+
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      if (ball.y < 0 || ball.y > canvas.height) ball.vy *= -1;
+      if (ball.x - ball.radius < paddleWidth && ball.y > leftY && ball.y < leftY + paddleHeight) ball.vx *= -1;
+      if (ball.x + ball.radius > canvas.width - paddleWidth && ball.y > rightY && ball.y < rightY + paddleHeight) ball.vx *= -1;
+
+      if (ball.x < 0 || ball.x > canvas.width) {
+        // Update past ball position to simulate latency
+        pastBallPosition = { x: ball.x, y: ball.y };
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+      }
     }
-  }
-  rightY = Math.max(0, Math.min(canvas.height - paddleHeight, rightY));
 
-  ball.x += ball.vx;
-  ball.y += ball.vy;
-
-  if (ball.y < 0 || ball.y > canvas.height) ball.vy *= -1;
-  if (ball.x - ball.radius < paddleWidth && ball.y > leftY && ball.y < leftY + paddleHeight) ball.vx *= -1;
-  if (ball.x + ball.radius > canvas.width - paddleWidth && ball.y > rightY && ball.y < rightY + paddleHeight) ball.vx *= -1;
-
-  if (ball.x < 0) { scoreB++; updateScore(); resetBall(); }
-  if (ball.x > canvas.width) { scoreA++; updateScore(); resetBall(); }
-}
-
-function updateScore() {
-  document.getElementById("scoreA").textContent = `A: ${scoreA}`;
-  document.getElementById("scoreB").textContent = `B: ${scoreB}`;
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawPaddle(0, leftY);
-  drawPaddle(canvas.width - paddleWidth, rightY);
-  drawBall();
-}
-
-function gameLoop() {
-  updatePositions();
-  draw();
-  requestAnimationFrame(gameLoop);
-}
-
-function startGame(mode) {
-  document.querySelector(".playerSelect").style.display = "none";
-  resetBall();
-  controlLeft = (mode === 'a');
-  controlRight = (mode === 'b');
-
-  if (isTouch) {
-    document.getElementById("touchControls").style.display = "flex";
-    document.getElementById("leftControls").style.display = controlLeft ? 'flex' : 'none';
-    document.getElementById("rightControls").style.display = controlRight ? 'flex' : 'none';
-  }
-
-  gameLoop();
-}
-
-// TOUCH CONTROLS
-if (isTouch) {
-  document.getElementById("leftUp")?.addEventListener("touchstart", () => leftVelocity = -3);
-  document.getElementById("leftDown")?.addEventListener("touchstart", () => leftVelocity = 3);
-  document.getElementById("leftUp")?.addEventListener("touchend", () => leftVelocity = 0);
-  document.getElementById("leftDown")?.addEventListener("touchend", () => leftVelocity = 0);
-
-  document.getElementById("rightUp")?.addEventListener("touchstart", () => {
-    rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
-  });
-  document.getElementById("rightDown")?.addEventListener("touchstart", () => {
-    rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
-  });
-  document.getElementById("rightUp")?.addEventListener("touchend", () => {
-    rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-  });
-  document.getElementById("rightDown")?.addEventListener("touchend", () => {
-    rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-  });
-}
-
-// KEYBOARD CONTROLS
-if (!isTouch) {
-  document.addEventListener("keydown", e => {
-    if (controlLeft) {
-      if (e.key === "w") leftVelocity = -3;
-      if (e.key === "s") leftVelocity = 3;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPaddle(0, leftY);
+      drawPaddle(canvas.width - paddleWidth, rightY);
+      drawBall();
     }
-    if (controlRight) {
-      if (e.key === "ArrowUp") rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
-      if (e.key === "ArrowDown") rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
-    }
-  });
-  document.addEventListener("keyup", e => {
-    if (controlLeft && (e.key === "w" || e.key === "s")) leftVelocity = 0;
-    if (controlRight && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-      rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-    }
-  });
-}
 
+    function gameLoop() {
+      updatePositions();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Player button handlers
+    document.getElementById("playerA").addEventListener("click", () => {
+      leftPlayer = "Player";
+      rightPlayer = "AI";
+      ball.x = canvas.width / 2; // Reset ball position
+      ball.y = canvas.height / 2;
+    });
+
+    document.getElementById("playerB").addEventListener("click", () => {
+      leftPlayer = "AI";
+      rightPlayer = "Player";
+      ball.x = canvas.width / 2; // Reset ball position
+      ball.y = canvas.height / 2;
+    });
+
+    document.getElementById("aiMode").addEventListener("click", () => {
+      leftPlayer = "AI";
+      rightPlayer = "AI";
+      ball.x = canvas.width / 2; // Reset ball position
+      ball.y = canvas.height / 2;
+    });
+
+    // Keyboard controls
+    document.addEventListener("keydown", e => {
+      if (leftPlayer === "Player") {
+        if (e.key === "w") leftVelocity = -3;
+        if (e.key === "s") leftVelocity = 3;
+      }
+      if (rightPlayer === "Player") {
+        if (e.key === "ArrowUp") rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
+        if (e.key === "ArrowDown") rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
+      }
+    });
+    document.addEventListener("keyup", e => {
+      if (leftPlayer === "Player" && (e.key === "w" || e.key === "s")) leftVelocity = 0;
+      if (rightPlayer === "Player" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
+      }
+    });
+
+    gameLoop();
   </script>
 </body>
 </html>
