@@ -1,176 +1,93 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="lt">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>5G vs 4G Latency Ping Pong</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5G Demo Žaidimas</title>
   <style>
-    body { font-family: sans-serif; text-align: center; color: white; background-color: #111; margin: 0; padding: 0; }
-    canvas { background: #000; display: block; margin: 10px auto; border: 2px solid #fff; }
-    .controls { display: flex; justify-content: space-around; margin-top: 10px; }
-    .control-group { display: flex; flex-direction: column; gap: 10px; }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      background-color: #333;
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #111;
       color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
     }
-    button:active { background-color: #555; }
+    canvas {
+      background-color: #222;
+      display: block;
+    }
+    #player-select {
+      margin-bottom: 10px;
+    }
+    .scoreboard {
+      margin-top: 10px;
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
-  <h1>5G vs 4G Latency Ping Pong Demo</h1>
-  <p>Use ?player=a or ?player=b in the URL to control a paddle.</p>
-  <canvas id="gameCanvas" width="300" height="400"></canvas>
-  <div class="controls" id="touchControls" style="display: none">
-    <div class="control-group" id="leftControls">
-      <button id="leftUp">Left Up</button>
-      <button id="leftDown">Left Down</button>
-    </div>
-    <div class="control-group" id="rightControls">
-      <button id="rightUp">Right Up</button>
-      <button id="rightDown">Right Down</button>
-    </div>
-  </div>  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const player = urlParams.get("player");
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+  <div id="player-select">
+    <label>Pasirinkite žaidėją:
+      <select id="player">
+        <option value="5G">5G</option>
+        <option value="4G">4G</option>
+      </select>
+    </label>
+    <button onclick="startGame()">Pradėti</button>
+  </div>
 
-    const paddleHeight = 60, paddleWidth = 10;
-    let leftY = 150, rightY = 150;
-    let leftVelocity = 0, rightVelocity = 0;
-    let rightInputQueue = [];
+  <canvas id="gameCanvas" width="300" height="400" style="display:none;"></canvas>
 
-    const ball = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      vx: 2,
-      vy: 1.5,
-      radius: 6
-    };
+  <div class="scoreboard">
+    5G Taškai: <span id="score5g">0</span> | 4G Taškai: <span id="score4g">0</span>
+  </div>
 
-    const controlLeft = (player === "a");
-    const controlRight = (player === "b");
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let y = 200;
+    let score5g = 0;
+    let score4g = 0;
+    let activePlayer = '5G';
 
-    if (isTouch) {
-      document.getElementById("touchControls").style.display = "flex";
-      document.getElementById("leftControls").style.display = controlLeft ? 'flex' : 'none';
-      document.getElementById("rightControls").style.display = controlRight ? 'flex' : 'none';
-    }
-
-    function drawPaddle(x, y) {
-      ctx.fillStyle = "white";
-      ctx.fillRect(x, y, paddleWidth, paddleHeight);
-    }
-
-    function drawBall() {
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-      ctx.fillStyle = "white";
-      ctx.fill();
-      ctx.closePath();
-    }
-
-    function updatePositions() {
-      if (controlLeft) {
-        leftY += leftVelocity;
-      } else {
-        if (ball.vx < 0 && ball.x < canvas.width / 2) {
-          const target = ball.y - paddleHeight / 2;
-          leftY += Math.sign(target - leftY) * 1.5;
-        }
-      }
-      leftY = Math.max(0, Math.min(canvas.height - paddleHeight, leftY));
-
-      if (controlRight) {
-        if (rightInputQueue.length > 0 && Date.now() >= rightInputQueue[0].time) {
-          rightVelocity = rightInputQueue.shift().velocity;
-        }
-        rightY += rightVelocity;
-      } else {
-        if (ball.vx > 0 && ball.x > canvas.width / 2) {
-          const target = ball.y - paddleHeight / 2;
-          rightY += Math.sign(target - rightY) * 1.5;
-        }
-      }
-      rightY = Math.max(0, Math.min(canvas.height - paddleHeight, rightY));
-
-      ball.x += ball.vx;
-      ball.y += ball.vy;
-
-      if (ball.y < 0 || ball.y > canvas.height) ball.vy *= -1;
-      if (ball.x - ball.radius < paddleWidth && ball.y > leftY && ball.y < leftY + paddleHeight) ball.vx *= -1;
-      if (ball.x + ball.radius > canvas.width - paddleWidth && ball.y > rightY && ball.y < rightY + paddleHeight) ball.vx *= -1;
-
-      if (ball.x < 0 || ball.x > canvas.width) {
-        ball.x = canvas.width / 2;
-        ball.y = canvas.height / 2;
-      }
+    function startGame() {
+      activePlayer = document.getElementById('player').value;
+      document.getElementById('player-select').style.display = 'none';
+      canvas.style.display = 'block';
+      requestAnimationFrame(draw);
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawPaddle(0, leftY);
-      drawPaddle(canvas.width - paddleWidth, rightY);
-      drawBall();
+      ctx.fillStyle = activePlayer === '5G' ? 'lime' : 'orange';
+      ctx.fillRect(140, y, 20, 20);
+      requestAnimationFrame(draw);
     }
 
-    function gameLoop() {
-      updatePositions();
-      draw();
-      requestAnimationFrame(gameLoop);
+    function moveUp() {
+      y -= 10;
+      if (activePlayer === '5G') {
+        score5g++;
+        document.getElementById('score5g').textContent = score5g;
+      } else {
+        score4g++;
+        document.getElementById('score4g').textContent = score4g;
+      }
     }
 
-    // TOUCH CONTROLS
-    if (isTouch && controlLeft) {
-      document.getElementById("leftUp").addEventListener("touchstart", () => leftVelocity = -3);
-      document.getElementById("leftDown").addEventListener("touchstart", () => leftVelocity = 3);
-      document.getElementById("leftUp").addEventListener("touchend", () => leftVelocity = 0);
-      document.getElementById("leftDown").addEventListener("touchend", () => leftVelocity = 0);
-    }
+    // PC klavišai
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'w' || e.key === 'ArrowUp') {
+        moveUp();
+      }
+    });
 
-    if (isTouch && controlRight) {
-      document.getElementById("rightUp").addEventListener("touchstart", () => {
-        rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
-      });
-      document.getElementById("rightDown").addEventListener("touchstart", () => {
-        rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
-      });
-      document.getElementById("rightUp").addEventListener("touchend", () => {
-        rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-      });
-      document.getElementById("rightDown").addEventListener("touchend", () => {
-        rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-      });
-    }
-
-    // KEYBOARD CONTROLS
-    if (!isTouch) {
-      document.addEventListener("keydown", e => {
-        if (controlLeft) {
-          if (e.key === "w") leftVelocity = -3;
-          if (e.key === "s") leftVelocity = 3;
-        }
-        if (controlRight) {
-          if (e.key === "ArrowUp") {
-            rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
-          }
-          if (e.key === "ArrowDown") {
-            rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
-          }
-        }
-      });
-      document.addEventListener("keyup", e => {
-        if (controlLeft && (e.key === "w" || e.key === "s")) leftVelocity = 0;
-        if (controlRight && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-          rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
-        }
-      });
-    }
-
-    gameLoop();
-  </script></body>
+    // Lietimui
+    window.addEventListener('touchstart', moveUp);
+  </script>
+</body>
 </html>
