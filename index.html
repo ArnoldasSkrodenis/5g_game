@@ -1,159 +1,180 @@
-<!DOCTYPE html><html lang="en">
-<head>
+<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>5G vs 4G Demo</title>
+  <title>5G vs 4G Latency Ping Pong</title>
   <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: black;
+    body { font-family: sans-serif; text-align: center; color: white; background-color: #111; margin: 0; padding: 0; }
+    canvas { background: #000; display: block; margin: 10px auto; border: 2px solid #fff; }
+    .controls { display: flex; justify-content: space-around; margin-top: 10px; }
+    .control-group { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: #333;
       color: white;
     }
-    canvas {
-      background: #000;
-      display: block;
-    }
-    #startMenu {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: white;
-      color: black;
-      padding: 10px;
-      border-radius: 5px;
-      z-index: 10;
-    }
-    #scoreBoard {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      z-index: 10;
-      font-size: 20px;
-    }
+    button:active { background-color: #555; }
+    #playerSelect { margin: 20px; }
   </style>
 </head>
 <body>
-  <div id="startMenu">
-    <label>Pasirink žaidėją:</label>
-    <select id="sideSelect">
-      <option value="left">5G (kairėje)</option>
-      <option value="right">5G (dešinėje)</option>
-    </select>
-    <button onclick="startGame()">Pradėti</button>
+  <h1>5G vs 4G Latency Ping Pong Demo</h1>
+  <div id="playerSelect">
+    <p>Pasirink žaidėją:</p>
+    <button onclick="startGame('a')">Būti žaidėju A (kairėje)</button>
+    <button onclick="startGame('b')">Būti žaidėju B (dešinėje)</button>
+    <button onclick="startGame('ai')">Stebėti (abu AI)</button>
   </div>
-  <div id="scoreBoard">5G: 0 | 4G: 0</div>
-  <canvas id="gameCanvas"></canvas>
+  <canvas id="gameCanvas" width="300" height="400" style="display:none;"></canvas>
+  <div class="controls" id="touchControls" style="display: none">
+    <div class="control-group" id="leftControls">
+      <button id="leftUp">Left Up</button>
+      <button id="leftDown">Left Down</button>
+    </div>
+    <div class="control-group" id="rightControls">
+      <button id="rightUp">Right Up</button>
+      <button id="rightDown">Right Down</button>
+    </div>
+  </div>
   <script>
+    let player = null;
     const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;let playerSide = "left";
-let scores = { left: 0, right: 0 };
+    const ctx = canvas.getContext("2d");const paddleHeight = 60, paddleWidth = 10;
+let leftY = 150, rightY = 150;
+let leftVelocity = 0, rightVelocity = 0;
+let rightInputQueue = [];
 
-const paddleHeight = 100, paddleWidth = 15, ballSize = 10;
-let speed = 5;
+const ball = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  vx: 2,
+  vy: 1.5,
+  radius: 6
+};
 
-let leftPaddle = { x: 20, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
-let rightPaddle = { x: canvas.width - 20 - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, dy: 0 };
-let ball = { x: canvas.width / 2, y: canvas.height / 2, dx: speed, dy: speed };
+let controlLeft = false;
+let controlRight = false;
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-let gameStarted = false;
+function startGame(selectedPlayer) {
+  player = selectedPlayer;
+  controlLeft = player === "a";
+  controlRight = player === "b";
+
+  document.getElementById("playerSelect").style.display = "none";
+  canvas.style.display = "block";
+
+  if (isTouch) {
+    document.getElementById("touchControls").style.display = "flex";
+    document.getElementById("leftControls").style.display = controlLeft ? 'flex' : 'none';
+    document.getElementById("rightControls").style.display = controlRight ? 'flex' : 'none';
+  }
+
+  gameLoop();
+}
+
+function drawPaddle(x, y) {
+  ctx.fillStyle = "white";
+  ctx.fillRect(x, y, paddleWidth, paddleHeight);
+}
+
+function drawBall() {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = "white";
+  ctx.fill();
+  ctx.closePath();
+}
+
+function updatePositions() {
+  if (controlLeft) {
+    leftY += leftVelocity;
+  } else {
+    if (ball.vx < 0 && ball.x < canvas.width / 2) {
+      const target = ball.y - paddleHeight / 2;
+      leftY += Math.sign(target - leftY) * 1.5;
+    }
+  }
+  leftY = Math.max(0, Math.min(canvas.height - paddleHeight, leftY));
+
+  if (controlRight) {
+    if (rightInputQueue.length > 0 && Date.now() >= rightInputQueue[0].time) {
+      rightVelocity = rightInputQueue.shift().velocity;
+    }
+    rightY += rightVelocity;
+  } else {
+    if (ball.vx > 0 && ball.x > canvas.width / 2) {
+      const target = ball.y - paddleHeight / 2;
+      rightY += Math.sign(target - rightY) * 1.5;
+    }
+  }
+  rightY = Math.max(0, Math.min(canvas.height - paddleHeight, rightY));
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  if (ball.y < 0 || ball.y > canvas.height) ball.vy *= -1;
+  if (ball.x - ball.radius < paddleWidth && ball.y > leftY && ball.y < leftY + paddleHeight) ball.vx *= -1;
+  if (ball.x + ball.radius > canvas.width - paddleWidth && ball.y > rightY && ball.y < rightY + paddleHeight) ball.vx *= -1;
+
+  if (ball.x < 0 || ball.x > canvas.width) {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+  }
+}
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "white";
-  ctx.fillRect(leftPaddle.x, leftPaddle.y, paddleWidth, paddleHeight);
-  ctx.fillRect(rightPaddle.x, rightPaddle.y, paddleWidth, paddleHeight);
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ballSize, 0, Math.PI * 2);
-  ctx.fill();
+  drawPaddle(0, leftY);
+  drawPaddle(canvas.width - paddleWidth, rightY);
+  drawBall();
 }
 
-function update() {
-  if (!gameStarted) return;
-
-  ball.x += ball.dx;
-  ball.y += ball.dy;
-
-  if (ball.y <= 0 || ball.y >= canvas.height) ball.dy *= -1;
-
-  if (
-    ball.x - ballSize < leftPaddle.x + paddleWidth &&
-    ball.y > leftPaddle.y &&
-    ball.y < leftPaddle.y + paddleHeight
-  ) ball.dx *= -1;
-
-  if (
-    ball.x + ballSize > rightPaddle.x &&
-    ball.y > rightPaddle.y &&
-    ball.y < rightPaddle.y + paddleHeight
-  ) ball.dx *= -1;
-
-  if (ball.x < 0) {
-    scores.right++;
-    resetBall();
-  } else if (ball.x > canvas.width) {
-    scores.left++;
-    resetBall();
-  }
-
-  document.getElementById("scoreBoard").innerText = `5G: ${playerSide === 'left' ? scores.left : scores.right} | 4G: ${playerSide === 'left' ? scores.right : scores.left}`;
-
-  leftPaddle.y += leftPaddle.dy;
-  rightPaddle.y += rightPaddle.dy;
-
-  // AI for the opposite side
-  if (playerSide === "left") {
-    rightPaddle.dy = ball.y < rightPaddle.y + paddleHeight / 2 ? -speed : speed;
-  } else {
-    leftPaddle.dy = ball.y < leftPaddle.y + paddleHeight / 2 ? -speed : speed;
-  }
-
+function gameLoop() {
+  updatePositions();
   draw();
-  requestAnimationFrame(update);
+  requestAnimationFrame(gameLoop);
 }
 
-function resetBall() {
-  ball.x = canvas.width / 2;
-  ball.y = canvas.height / 2;
-  ball.dx = speed * (Math.random() > 0.5 ? 1 : -1);
-  ball.dy = speed * (Math.random() > 0.5 ? 1 : -1);
+if (isTouch) {
+  document.getElementById("leftUp").addEventListener("touchstart", () => leftVelocity = -3);
+  document.getElementById("leftDown").addEventListener("touchstart", () => leftVelocity = 3);
+  document.getElementById("leftUp").addEventListener("touchend", () => leftVelocity = 0);
+  document.getElementById("leftDown").addEventListener("touchend", () => leftVelocity = 0);
+
+  document.getElementById("rightUp").addEventListener("touchstart", () => {
+    rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
+  });
+  document.getElementById("rightDown").addEventListener("touchstart", () => {
+    rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
+  });
+  document.getElementById("rightUp").addEventListener("touchend", () => {
+    rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
+  });
+  document.getElementById("rightDown").addEventListener("touchend", () => {
+    rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
+  });
 }
 
-function startGame() {
-  playerSide = document.getElementById("sideSelect").value;
-  document.getElementById("startMenu").style.display = "none";
-
-  if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
-    window.addEventListener("touchmove", e => {
-      let y = e.touches[0].clientY;
-      if (playerSide === "left") {
-        leftPaddle.y = y - paddleHeight / 2;
-      } else {
-        rightPaddle.y = y - paddleHeight / 2;
-      }
-    }, { passive: false });
-  } else {
-    window.addEventListener("keydown", e => {
-      if (playerSide === "left") {
-        if (e.key === "w") leftPaddle.dy = -10;
-        if (e.key === "s") leftPaddle.dy = 10;
-      } else {
-        if (e.key === "ArrowUp") rightPaddle.dy = -10;
-        if (e.key === "ArrowDown") rightPaddle.dy = 10;
-      }
-    });
-    window.addEventListener("keyup", () => {
-      leftPaddle.dy = 0;
-      rightPaddle.dy = 0;
-    });
-  }
-
-  gameStarted = true;
-  update();
+if (!isTouch) {
+  document.addEventListener("keydown", e => {
+    if (controlLeft) {
+      if (e.key === "w") leftVelocity = -3;
+      if (e.key === "s") leftVelocity = 3;
+    }
+    if (controlRight) {
+      if (e.key === "ArrowUp") rightInputQueue.push({ velocity: -3, time: Date.now() + 200 });
+      if (e.key === "ArrowDown") rightInputQueue.push({ velocity: 3, time: Date.now() + 200 });
+    }
+  });
+  document.addEventListener("keyup", e => {
+    if (controlLeft && (e.key === "w" || e.key === "s")) leftVelocity = 0;
+    if (controlRight && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      rightInputQueue.push({ velocity: 0, time: Date.now() + 200 });
+    }
+  });
 }
 
   </script>
