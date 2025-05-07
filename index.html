@@ -1,93 +1,146 @@
-<!DOCTYPE html>
-<html lang="lt">
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>5G Demo Žaidimas</title>
+  <title>5G Demo Game</title>
   <style>
-    body {
+    html, body {
       margin: 0;
+      padding: 0;
+      overflow: hidden;
       font-family: Arial, sans-serif;
-      background-color: #111;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
     }
     canvas {
-      background-color: #222;
       display: block;
+      background: #000;
     }
-    #player-select {
-      margin-bottom: 10px;
+    #playerSelect {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
     }
-    .scoreboard {
-      margin-top: 10px;
-      font-size: 18px;
+    #scores {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: white;
+      font-size: 20px;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
-  <div id="player-select">
-    <label>Pasirinkite žaidėją:
-      <select id="player">
-        <option value="5G">5G</option>
-        <option value="4G">4G</option>
-      </select>
-    </label>
+  <div id="playerSelect">
+    <label>Pasirink žaidėją:</label>
+    <select id="playerChoice">
+      <option value="a">Žaidėjas A</option>
+      <option value="b">Žaidėjas B</option>
+      <option value="ai">AI</option>
+    </select>
     <button onclick="startGame()">Pradėti</button>
   </div>
-
-  <canvas id="gameCanvas" width="300" height="400" style="display:none;"></canvas>
-
-  <div class="scoreboard">
-    5G Taškai: <span id="score5g">0</span> | 4G Taškai: <span id="score4g">0</span>
-  </div>
-
+  <div id="scores">A: 0 | B: 0</div>
+  <canvas id="gameCanvas"></canvas>
   <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    let y = 200;
-    let score5g = 0;
-    let score4g = 0;
-    let activePlayer = '5G';
+    let canvas = document.getElementById('gameCanvas');
+    let ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;let player = '';
+let ball = { x: canvas.width / 2, y: canvas.height / 2, dx: 5, dy: 5, r: 10 };
+let paddleA = { x: 50, y: canvas.height / 2 - 50, w: 10, h: 100, dy: 0 };
+let paddleB = { x: canvas.width - 60, y: canvas.height / 2 - 50, w: 10, h: 100, dy: 0 };
+let scoreA = 0;
+let scoreB = 0;
 
-    function startGame() {
-      activePlayer = document.getElementById('player').value;
-      document.getElementById('player-select').style.display = 'none';
-      canvas.style.display = 'block';
-      requestAnimationFrame(draw);
-    }
+function drawPaddle(p) {
+  ctx.fillStyle = 'white';
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+}
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = activePlayer === '5G' ? 'lime' : 'orange';
-      ctx.fillRect(140, y, 20, 20);
-      requestAnimationFrame(draw);
-    }
+function drawBall() {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fillStyle = 'red';
+  ctx.fill();
+  ctx.closePath();
+}
 
-    function moveUp() {
-      y -= 10;
-      if (activePlayer === '5G') {
-        score5g++;
-        document.getElementById('score5g').textContent = score5g;
-      } else {
-        score4g++;
-        document.getElementById('score4g').textContent = score4g;
-      }
-    }
+function updateBall() {
+  ball.x += ball.dx;
+  ball.y += ball.dy;
 
-    // PC klavišai
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'w' || e.key === 'ArrowUp') {
-        moveUp();
-      }
+  if (ball.y + ball.r > canvas.height || ball.y - ball.r < 0) ball.dy *= -1;
+
+  if (ball.x - ball.r < paddleA.x + paddleA.w && ball.y > paddleA.y && ball.y < paddleA.y + paddleA.h) {
+    ball.dx *= -1;
+  } else if (ball.x + ball.r > paddleB.x && ball.y > paddleB.y && ball.y < paddleB.y + paddleB.h) {
+    ball.dx *= -1;
+  }
+
+  if (ball.x < 0) {
+    scoreB++;
+    resetBall();
+  } else if (ball.x > canvas.width) {
+    scoreA++;
+    resetBall();
+  }
+
+  document.getElementById('scores').innerText = `A: ${scoreA} | B: ${scoreB}`;
+}
+
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.dx *= -1;
+}
+
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawPaddle(paddleA);
+  drawPaddle(paddleB);
+  drawBall();
+  updateBall();
+
+  paddleA.y += paddleA.dy;
+  paddleB.y += paddleB.dy;
+
+  if (player === 'ai') {
+    if (ball.y < paddleB.y + paddleB.h / 2) paddleB.dy = -5;
+    else if (ball.y > paddleB.y + paddleB.h / 2) paddleB.dy = 5;
+    else paddleB.dy = 0;
+  }
+
+  requestAnimationFrame(update);
+}
+
+function startGame() {
+  player = document.getElementById('playerChoice').value;
+  document.getElementById('playerSelect').style.display = 'none';
+
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    window.addEventListener('touchstart', e => moveTouch(e), { passive: false });
+    window.addEventListener('touchmove', e => moveTouch(e), { passive: false });
+  } else {
+    window.addEventListener('keydown', e => {
+      if (e.key === 'w') paddleA.dy = -10;
+      if (e.key === 's') paddleA.dy = 10;
     });
+    window.addEventListener('keyup', () => paddleA.dy = 0);
+  }
 
-    // Lietimui
-    window.addEventListener('touchstart', moveUp);
+  update();
+}
+
+function moveTouch(e) {
+  e.preventDefault();
+  let touchY = e.touches[0].clientY;
+  paddleA.y = touchY - paddleA.h / 2;
+}
+
   </script>
 </body>
 </html>
